@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-	"testing"
 	"time"
 )
 
@@ -64,6 +63,7 @@ func (left List) sub(right List) List {
 }
 
 func _init(stop chan struct{}) {
+	log.SetFlags(log.Lshortfile | log.LstdFlags)
 	working_cfg := refreshCfg()
 	monitor := new(Monitor)
 	monitor.Init()
@@ -84,6 +84,7 @@ func _init(stop chan struct{}) {
 	for index, _ := range working_cfg.Tasks {
 		task := working_cfg.Tasks[index]
 		for i := 0; i < task.Parallel; i++ {
+			log.Println("Start Cmd:", task.Cmd, i)
 			task.exec(i)
 		}
 		for _, dir := range task.AutoAffect {
@@ -96,25 +97,41 @@ func _init(stop chan struct{}) {
 	last_notify := make(map[int]time.Time)
 	last_tick_one := time.Now()
 	zero_time := time.Time{}
+EXIT:
 	for {
 		select {
 		case <-stop:
+			log.Println("receive stop")
+			for index, _ := range working_cfg.Tasks {
+				task := working_cfg.Tasks[index]
+				for i := 0; i < task.Parallel; i++ {
+					task.kill(i)
+				}
+				for _, dir := range task.AutoAffect {
+					monitor.DelWatch(dir, []int{index})
+				}
+			}
+			break EXIT
 		case <-ticker.C:
 			//Refresh Configure, Synchronously modify tasks automatically
 			log.Println("ticker refresh Config")
 			cfg := refreshCfg()
 			wIndex := make(map[string]int)
+			for index, _ := range working_cfg.Tasks {
+				wIndex[working_cfg.Tasks[index].Cmd] = index
+			}
 			for _, task := range cfg.Tasks {
 				hit := false
 				for index, _ := range working_cfg.Tasks {
 					wtask := working_cfg.Tasks[index]
-					wIndex[wtask.Cmd] = index
 					if wtask.Cmd == task.Cmd {
+						delete(wIndex, wtask.Cmd)
 						wtask.KillGracefull = task.KillGracefull
 						wtask.Stdout = task.Stdout
 						//Add Instace
 						if wtask.Parallel < task.Parallel {
 							for i := wtask.Parallel; i < task.Parallel; i++ {
+								log.Println("Start Cmd:", wtask.Cmd, i)
 								wtask.exec(i)
 							}
 						} else if wtask.Parallel > task.Parallel {
@@ -125,11 +142,11 @@ func _init(stop chan struct{}) {
 									wtask.kill(i)
 								}
 								delete(wtask.Instances, i)
+								log.Println("Stop Cmd:", wtask.Cmd, i)
 							}
 						}
 						wtask.Parallel = task.Parallel
 						hit = true
-						delete(wIndex, wtask.Cmd)
 
 						toDel := List(wtask.AutoAffect).sub(task.AutoAffect)
 						toAdd := List(task.AutoAffect).sub(wtask.AutoAffect)
@@ -149,6 +166,7 @@ func _init(stop chan struct{}) {
 					index := len(working_cfg.Tasks)
 					ntask := working_cfg.Tasks[index-1]
 					for i := 0; i < ntask.Parallel; i++ {
+						log.Println("Start Cmd:", ntask.Cmd, i)
 						ntask.exec(i)
 					}
 					for _, dir := range ntask.AutoAffect {
@@ -164,6 +182,7 @@ func _init(stop chan struct{}) {
 					} else {
 						task.kill(i)
 					}
+					log.Println("Stop Cmd:", task.Cmd, i)
 				}
 				for _, dir := range task.AutoAffect {
 					monitor.DelWatch(dir, []int{index})
@@ -204,7 +223,7 @@ func _init(stop chan struct{}) {
 					wpid, _ := syscall.Wait4(proc.Pid, nil, syscall.WNOHANG, nil)
 					if wpid != 0 {
 						log.Println("Restart Cmd:", tasks.Cmd, index)
-						working_cfg.Tasks[i].exec(index)
+						tasks.exec(index)
 					}
 				}
 			}
@@ -216,7 +235,7 @@ func _init(stop chan struct{}) {
 	}
 }
 
-func TestRun(t *testing.T) {
-	stoper := make(chan struct{})
-	_init(stoper)
-}
+//func main() {
+//	stoper := make(chan struct{})
+//	_init(stoper)
+//}

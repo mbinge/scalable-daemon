@@ -13,6 +13,7 @@ import (
 var (
 	signal = flag.String("s", "", `send signal to the daemon
 		stop — fast shutdown
+		quit — graceful shutdown
 		restart — restart all task
 		`)
 )
@@ -20,6 +21,7 @@ var (
 func main() {
 	flag.Parse()
 	daemon.AddCommand(daemon.StringFlag(signal, "stop"), syscall.SIGTERM, termHandler)
+	daemon.AddCommand(daemon.StringFlag(signal, "quit"), syscall.SIGQUIT, termHandler)
 	cli_name := filepath.Base(os.Args[0])
 
 	pidfile, logfile := getLogAndPid()
@@ -78,14 +80,12 @@ func termHandler(sig os.Signal) error {
 	log.Println("terminating...")
 	stop <- struct{}{}
 	if sig == syscall.SIGQUIT {
+		log.Println("send stop")
 		<-done
 	}
 	return daemon.ErrStop
 }
 
 func reloadHandler(sig os.Signal) error {
-	stop <- struct{}{}
-	<-done
-	go worker()
 	return nil
 }

@@ -20,6 +20,9 @@ type Monitor struct {
 func (monitor *Monitor) delWatchRecursively(dir string) error {
 	hit := false
 	err := filepath.Walk(dir, func(path string, f os.FileInfo, err error) error {
+		if strings.HasPrefix(f.Name(), ".") {
+			return nil
+		}
 		if f != nil && f.IsDir() {
 			log.Println("DEL:", path)
 			err := monitor.watcher.Remove(path)
@@ -53,6 +56,9 @@ func (monitor *Monitor) DelWatch(dir string, item []int) {
 
 func (monitor *Monitor) addWatchRecursively(dir string) error {
 	err := filepath.Walk(dir, func(path string, f os.FileInfo, err error) error {
+		if strings.HasPrefix(f.Name(), ".") {
+			return nil
+		}
 		if f != nil && f.IsDir() {
 			log.Println("ADD:", path)
 			err := monitor.watcher.Add(path)
