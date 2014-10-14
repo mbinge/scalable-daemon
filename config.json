@@ -1,0 +1,14 @@
+{
+  "log": "var/run.log",
+  "pid": "var/run.pid",
+  "snap": "var/snap.json",
+  "tasks": [
+    {
+        "cmd":"/Users/champion/app/php/bin/php test.php",
+        "home":"/Users/champion/work/go/src/scalable-daemon",
+        "parallel": 100,
+        "killGracefull":true,
+        "stdout":"var/php_script.log"
+    }
+    ]
+}
