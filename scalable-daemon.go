@@ -62,6 +62,25 @@ func (left List) sub(right List) List {
 	return left_only
 }
 
+var waiting bool
+
+func waitExit(list map[int]*Proc, cmd string) {
+	for {
+		waiting = true
+		if len(list) == 0 {
+			waiting = false
+			break
+		}
+		for i, _ := range list {
+			if list[i].wait() == true {
+				log.Println("Stopped:", cmd, i)
+				delete(list, i)
+			}
+		}
+		time.Sleep(time.Millisecond * 500)
+	}
+}
+
 func _init(stop chan struct{}) {
 	log.SetFlags(log.Lshortfile | log.LstdFlags)
 	working_cfg := refreshCfg()
@@ -69,6 +88,7 @@ func _init(stop chan struct{}) {
 	monitor.Init()
 	go monitor.Start()
 
+	waiting = false
 	//kill old task before run
 	snap_cfg := working_cfg.ReadSnap()
 	for index, _ := range snap_cfg.Tasks {
@@ -113,6 +133,10 @@ EXIT:
 			}
 			break EXIT
 		case <-ticker.C:
+			if waiting == true {
+				log.Println("waiting job finished")
+				continue
+			}
 			//Refresh Configure, Synchronously modify tasks automatically
 			log.Println("ticker refresh Config")
 			cfg := refreshCfg()
@@ -129,6 +153,7 @@ EXIT:
 						wtask.KillGracefull = task.KillGracefull
 						wtask.Stdout = task.Stdout
 						//Add Instace
+						waitList := make(map[int]*Proc)
 						if wtask.Parallel < task.Parallel {
 							for i := wtask.Parallel; i < task.Parallel; i++ {
 								log.Println("Start Cmd:", wtask.Cmd, i)
@@ -137,13 +162,15 @@ EXIT:
 						} else if wtask.Parallel > task.Parallel {
 							for i := task.Parallel; i < wtask.Parallel; i++ {
 								if wtask.KillGracefull == true {
-									wtask.shrink(i)
+									wtask.start_shrink(i)
+									waitList[i] = wtask.Instances[i]
 								} else {
 									wtask.kill(i)
 								}
 								delete(wtask.Instances, i)
-								log.Println("Stop Cmd:", wtask.Cmd, i)
+								log.Println("Start_Stop Cmd:", wtask.Cmd, i)
 							}
+							waitExit(waitList, wtask.Cmd)
 						}
 						wtask.Parallel = task.Parallel
 						hit = true
@@ -174,16 +201,19 @@ EXIT:
 					}
 				}
 			}
+			waitList := make(map[int]*Proc)
 			for _, index := range wIndex {
 				task := working_cfg.Tasks[index]
 				for i := 0; i < task.Parallel; i++ {
 					if task.KillGracefull == true {
-						task.stop(i)
+						task.start_stop(i)
+						waitList[i] = task.Instances[i]
 					} else {
 						task.kill(i)
 					}
-					log.Println("Stop Cmd:", task.Cmd, i)
+					log.Println("Start_Stop Cmd:", task.Cmd, i)
 				}
+				waitExit(waitList, task.Cmd)
 				for _, dir := range task.AutoAffect {
 					monitor.DelWatch(dir, []int{index})
 				}
@@ -191,6 +221,10 @@ EXIT:
 			}
 			working_cfg.WriteSnap()
 		case <-tickerLive.C:
+			if waiting == true {
+				log.Println("waiting job finished")
+				continue
+			}
 			if time.Now().Sub(last_tick_one).Nanoseconds() < int64(time.Millisecond)*990 {
 				continue
 			}
@@ -203,6 +237,7 @@ EXIT:
 					ins := tasks.Instances
 					for index, proc := range ins {
 						if proc.process != nil {
+							log.Println("Restart Cmd:", tasks.Cmd, index)
 							working_cfg.Tasks[i].restart(index)
 							hit_restart = true
 						}

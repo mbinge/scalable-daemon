@@ -13,5 +13,5 @@ while(true) {
         break;
     }
     echo time()."\n";
-    sleep(1);
+    sleep(rand(1,10));
 }

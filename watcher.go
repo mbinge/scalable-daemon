@@ -76,7 +76,7 @@ func (monitor *Monitor) AddWatch(dir string, item []int) {
 		monitor.Dirs[dir] = make(map[int]bool)
 		monitor.addWatchRecursively(dir)
 	}
-	for in := range item {
+	for _, in := range item {
 		monitor.Dirs[dir][in] = true
 	}
 }

@@ -26,29 +26,33 @@ type Task struct {
 	Instances     map[int]*Proc
 }
 
-func (tasks *Task) stop(index int) {
+func (tasks *Task) start_stop(index int) {
 	if task, ok := tasks.Instances[index]; ok == true {
 		in := *task.stdin
 		in.Write([]byte("STOP\n"))
-		go task.process.Wait()
 	}
 }
 
 func (tasks *Task) restart(index int) {
-	if task, ok := tasks.Instances[index]; ok == true {
-		in := *task.stdin
-		in.Write([]byte("RESTART\n"))
-		task.process.Wait()
+	if _, ok := tasks.Instances[index]; ok == true {
+		tasks.kill(index)
 		tasks.exec(index)
 	}
 }
 
-func (tasks *Task) shrink(index int) {
+func (tasks *Task) start_shrink(index int) {
 	if task, ok := tasks.Instances[index]; ok == true {
 		in := *task.stdin
 		in.Write([]byte("SHRINK\n"))
-		go task.process.Wait()
 	}
+}
+
+func (proc *Proc) wait() bool {
+	wpid, _ := syscall.Wait4(proc.Pid, nil, syscall.WNOHANG, nil)
+	if wpid != 0 {
+		return true
+	}
+	return false
 }
 
 func (tasks *Task) kill(index int) {

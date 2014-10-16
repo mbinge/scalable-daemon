@@ -6,13 +6,15 @@
     {
         "cmd":"/Users/champion/app/php/bin/php test.php",
         "home":"/Users/champion/work/go/src/scalable-daemon",
-        "parallel": 100,
+        "autoAffect":["/Users/champion/work/go/src/scalable-daemon/dir"],
+        "parallel": 10,
         "killGracefull":true,
         "stdout":"var/php_script.log"
     },
     {
         "cmd":"/Users/champion/app/php/bin/php test1.php",
         "home":"/Users/champion/work/go/src/scalable-daemon",
+        "autoAffect":["/Users/champion/work/go/src/scalable-daemon/dir"],
         "parallel": 2,
         "killGracefull":true,
         "stdout":"var/php_script.log"
